@@ -3,18 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Average FC - Prototype</title>
+    <title>Average FC</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div id="game-container">
-        <!-- The canvas is our soccer pitch -->
         <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- UI Layer on top of the canvas -->
         <div id="ui-layer">
             <h1>Average FC</h1>
             <p>Use Arrow Keys to Move | Press SPACE to Pass/Shoot</p>
         </div>
+        
+        <!-- Version Number Placeholder -->
+        <div id="version-display">
+            v<span id="version-number">0.1.0</span>
+        </div>
     </div>
+    
     <script src="script.js"></script>
 </body>
 </html>
