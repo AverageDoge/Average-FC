@@ -16,12 +16,12 @@ let ball = {
     x: WORLD_WIDTH / 2, 
     y: WORLD_HEIGHT / 2, 
     radius: 8, 
-    vx: 0, // Ball X velocity
-    vy: 0, // Ball Y velocity
+    vx: 0,
+    vy: 0,
     isPossessedBy: null 
 };
 
-// Added facingX and facingY so we know which way to kick
+// Player facing logic remains so the ball knows which way to shoot
 const blueTeam = [
     { id: 1, role: 'GK', x: 100, y: WORLD_HEIGHT / 2, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
     { id: 2, role: 'RB', x: 400, y: 200, isInverted: true, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
@@ -32,13 +32,19 @@ const blueTeam = [
     { id: 7, role: 'CAM', x: 900, y: 350, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
     { id: 8, role: 'CAM', x: 900, y: 850, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
     { id: 9, role: 'RW', x: 1100, y: 200, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
-    { id: 10, role: 'ST', x: 1200, y: WORLD_HEIGHT / 2, isControlled: true, radius: 15, facingX: 1, facingY: 0 },
+    { id: 10, role: 'ST', x: 1200, y: WORLD_HEIGHT / 2, isControlled: true, radius: 15, facingX: -1, facingY: 0 },
     { id: 11, role: 'LW', x: 1100, y: 1000, isControlled: false, radius: 15, facingX: 1, facingY: 0 }
 ];
 
-// Handle arrow keys and Spacebar
-window.addEventListener('keydown', (e) => keys[e.key === ' ' ? 'Space' : e.key] = true);
-window.addEventListener('keyup', (e) => keys[e.key === ' ' ? 'Space' : e.key] = false);
+// FIX: Improved Spacebar detection for all browsers
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') keys['Space'] = true;
+    else keys[e.key] = true;
+});
+window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') keys['Space'] = false;
+    else keys[e.key] = false;
+});
 
 function getDistance(x1, y1, x2, y2) {
     return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
@@ -56,7 +62,6 @@ function updateGame() {
     if (keys['ArrowLeft']) dx -= 1;
     if (keys['ArrowRight']) dx += 1;
 
-    // Move player and update the direction they are facing
     if (dx !== 0 || dy !== 0) {
         let length = Math.sqrt(dx * dx + dy * dy);
         activePlayer.facingX = dx / length;
@@ -69,48 +74,46 @@ function updateGame() {
     activePlayer.x = Math.max(0, Math.min(WORLD_WIDTH, activePlayer.x));
     activePlayer.y = Math.max(0, Math.min(WORLD_HEIGHT, activePlayer.y));
 
-    // Pick up the ball
     if (!ball.isPossessedBy) {
         if (getDistance(activePlayer.x, activePlayer.y, ball.x, ball.y) < activePlayer.radius + ball.radius) {
             ball.isPossessedBy = activePlayer;
-            ball.vx = 0; // Stop ball movement
+            ball.vx = 0;
             ball.vy = 0;
         }
     }
 
-    // Ball Logic
     if (ball.isPossessedBy) {
-        // Keep the ball at the feet of the player in the direction they are facing
         ball.x = ball.isPossessedBy.x + (ball.isPossessedBy.facingX * 18);
         ball.y = ball.isPossessedBy.y + (ball.isPossessedBy.facingY * 18);
 
-        // KICK / PASS
+        // FIX: Shoot mechanics properly disconnect the ball from the player
         if (keys['Space']) {
-            const kickPower = 20; // How fast the ball shoots
+            const kickPower = 22; // Harder kick
+            
+            // Push the ball forward explicitly so it clears the player's hit box
+            ball.x += ball.isPossessedBy.facingX * 10;
+            ball.y += ball.isPossessedBy.facingY * 10;
+            
             ball.vx = ball.isPossessedBy.facingX * kickPower;
             ball.vy = ball.isPossessedBy.facingY * kickPower;
+            
             ball.isPossessedBy = null;
-            keys['Space'] = false; // Prevent holding spacebar to glitch the ball
+            keys['Space'] = false; 
         }
     } else {
-        // Physics when ball is loose on the pitch
         ball.x += ball.vx;
         ball.y += ball.vy;
         
-        // Grass friction slows the ball down
         ball.vx *= 0.95; 
         ball.vy *= 0.95;
 
-        // Stop completely if very slow
         if (Math.abs(ball.vx) < 0.1) ball.vx = 0;
         if (Math.abs(ball.vy) < 0.1) ball.vy = 0;
         
-        // Bounce off the field walls
         if (ball.x <= 0 || ball.x >= WORLD_WIDTH) ball.vx *= -1;
         if (ball.y <= 0 || ball.y >= WORLD_HEIGHT) ball.vy *= -1;
     }
 
-    // Camera follows active player
     let targetCameraX = activePlayer.x - (camera.width / 2);
     let targetCameraY = activePlayer.y - (camera.height / 2);
 
@@ -163,31 +166,31 @@ function drawBall() {
     let screenX = ball.x - camera.x;
     let screenY = ball.y - camera.y;
 
-    // Draw White Base
+    // FIX: Hard-coded black and white fills so they can never glitch to clear
     ctx.beginPath();
     ctx.arc(screenX, screenY, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = 'white';
+    ctx.fillStyle = '#ffffff'; // White base
     ctx.fill();
     ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
     
     // Draw Center Black Pentagon
     ctx.beginPath();
-    ctx.arc(screenX, screenY, ball.radius * 0.4, 0, Math.PI * 2);
-    ctx.fillStyle = 'black';
+    ctx.arc(screenX, screenY, ball.radius * 0.45, 0, Math.PI * 2);
+    ctx.fillStyle = '#000000'; // Black center
     ctx.fill();
 
-    // Draw 3 smaller edge spots that spin based on the ball's position
+    // Draw 3 smaller edge spots that spin
     for (let i = 0; i < 3; i++) {
-        // The (ball.x + ball.y) * 0.05 creates the spinning illusion!
         let angle = i * ((Math.PI * 2) / 3) + (ball.x + ball.y) * 0.05; 
         ctx.beginPath();
         ctx.arc(
-            screenX + Math.cos(angle) * ball.radius * 0.65,
-            screenY + Math.sin(angle) * ball.radius * 0.65,
+            screenX + Math.cos(angle) * ball.radius * 0.7,
+            screenY + Math.sin(angle) * ball.radius * 0.7,
             ball.radius * 0.25, 0, Math.PI * 2
         );
+        ctx.fillStyle = '#000000'; // Black spots
         ctx.fill();
     }
 }
@@ -202,4 +205,3 @@ function gameLoop() {
 }
 
 gameLoop();
- 
