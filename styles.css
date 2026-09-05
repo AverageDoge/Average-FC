@@ -23,7 +23,7 @@ body {
 }
 
 canvas {
-    background-color: #27ae60; /* Pitch Green */
+    background-color: #27ae60;
     display: block;
 }
 
@@ -43,4 +43,14 @@ canvas {
 #ui-layer p {
     font-size: 14px;
     color: #bdc3c7;
+}
+
+/* Places the version in the bottom right */
+#version-display {
+    position: absolute;
+    bottom: 10px;
+    right: 15px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    pointer-events: none;
 }
