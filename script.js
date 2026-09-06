@@ -21,7 +21,6 @@ let ball = {
     isPossessedBy: null 
 };
 
-// Player facing logic remains so the ball knows which way to shoot
 const blueTeam = [
     { id: 1, role: 'GK', x: 100, y: WORLD_HEIGHT / 2, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
     { id: 2, role: 'RB', x: 400, y: 200, isInverted: true, isControlled: false, radius: 15, facingX: 1, facingY: 0 },
@@ -36,13 +35,14 @@ const blueTeam = [
     { id: 11, role: 'LW', x: 1100, y: 1000, isControlled: false, radius: 15, facingX: 1, facingY: 0 }
 ];
 
-// FIX: Improved Spacebar detection for all browsers
 window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') keys['Space'] = true;
+    else if (e.key === 'e' || e.key === 'E') keys['e'] = true; // Added 'E' key
     else keys[e.key] = true;
 });
 window.addEventListener('keyup', (e) => {
     if (e.code === 'Space') keys['Space'] = false;
+    else if (e.key === 'e' || e.key === 'E') keys['e'] = false;
     else keys[e.key] = false;
 });
 
@@ -74,28 +74,84 @@ function updateGame() {
     activePlayer.x = Math.max(0, Math.min(WORLD_WIDTH, activePlayer.x));
     activePlayer.y = Math.max(0, Math.min(WORLD_HEIGHT, activePlayer.y));
 
+    // Pickup logic + Auto Switching
     if (!ball.isPossessedBy) {
-        if (getDistance(activePlayer.x, activePlayer.y, ball.x, ball.y) < activePlayer.radius + ball.radius) {
-            ball.isPossessedBy = activePlayer;
-            ball.vx = 0;
-            ball.vy = 0;
-        }
+        blueTeam.forEach(player => {
+            if (getDistance(player.x, player.y, ball.x, ball.y) < player.radius + ball.radius) {
+                ball.isPossessedBy = player;
+                ball.vx = 0;
+                ball.vy = 0;
+                
+                // Automatically switch control to the player who grabbed the loose ball
+                blueTeam.forEach(p => p.isControlled = false);
+                player.isControlled = true;
+                activePlayer = player;
+            }
+        });
     }
 
     if (ball.isPossessedBy) {
         ball.x = ball.isPossessedBy.x + (ball.isPossessedBy.facingX * 18);
         ball.y = ball.isPossessedBy.y + (ball.isPossessedBy.facingY * 18);
 
-        // FIX: Shoot mechanics properly disconnect the ball from the player
-        if (keys['Space']) {
-            const kickPower = 22; // Harder kick
+        // PASSING (E Key)
+        if (keys['e']) {
+            let bestTeammate = null;
+            let maxScore = -Infinity;
             
-            // Push the ball forward explicitly so it clears the player's hit box
-            ball.x += ball.isPossessedBy.facingX * 10;
-            ball.y += ball.isPossessedBy.facingY * 10;
+            // Find the best teammate in the direction we are facing
+            blueTeam.forEach(teammate => {
+                if (teammate === activePlayer) return;
+                
+                let tx = teammate.x - activePlayer.x;
+                let ty = teammate.y - activePlayer.y;
+                let dist = Math.sqrt(tx*tx + ty*ty);
+                
+                if (dist > 0 && dist < 1200) {
+                    let dirX = tx / dist;
+                    let dirY = ty / dist;
+                    
+                    // Alignment score (how well are we pointing at them?)
+                    let dot = (dirX * activePlayer.facingX) + (dirY * activePlayer.facingY);
+                    
+                    if (dot > 0.3) { // They must be somewhat in front of the player
+                        let score = (dot * 1000) - dist; // Prefer aligned and closer players
+                        if (score > maxScore) {
+                            maxScore = score;
+                            bestTeammate = teammate;
+                        }
+                    }
+                }
+            });
+
+            if (bestTeammate) {
+                const passPower = 18;
+                let passDx = bestTeammate.x - activePlayer.x;
+                let passDy = bestTeammate.y - activePlayer.y;
+                let passDist = Math.sqrt(passDx*passDx + passDy*passDy);
+                
+                // Kick the ball toward the teammate
+                ball.x += (passDx / passDist) * 15;
+                ball.y += (passDy / passDist) * 15;
+                ball.vx = (passDx / passDist) * passPower;
+                ball.vy = (passDy / passDist) * passPower;
+                
+                // Immediately switch control to the receiver
+                activePlayer.isControlled = false;
+                bestTeammate.isControlled = true;
+                
+                ball.isPossessedBy = null;
+            }
+            keys['e'] = false; // Prevent rapid firing
+
+        // SHOOTING (Spacebar)
+        } else if (keys['Space']) {
+            const kickPower = 24; 
             
-            ball.vx = ball.isPossessedBy.facingX * kickPower;
-            ball.vy = ball.isPossessedBy.facingY * kickPower;
+            ball.x += activePlayer.facingX * 15;
+            ball.y += activePlayer.facingY * 15;
+            ball.vx = activePlayer.facingX * kickPower;
+            ball.vy = activePlayer.facingY * kickPower;
             
             ball.isPossessedBy = null;
             keys['Space'] = false; 
@@ -114,11 +170,17 @@ function updateGame() {
         if (ball.y <= 0 || ball.y >= WORLD_HEIGHT) ball.vy *= -1;
     }
 
-    let targetCameraX = activePlayer.x - (camera.width / 2);
-    let targetCameraY = activePlayer.y - (camera.height / 2);
+    // SMOOTH CAMERA: Target is now the ball, not the player
+    let targetCameraX = ball.x - (camera.width / 2);
+    let targetCameraY = ball.y - (camera.height / 2);
 
-    camera.x = Math.max(0, Math.min(WORLD_WIDTH - camera.width, targetCameraX));
-    camera.y = Math.max(0, Math.min(WORLD_HEIGHT - camera.height, targetCameraY));
+    // Keep camera in bounds
+    targetCameraX = Math.max(0, Math.min(WORLD_WIDTH - camera.width, targetCameraX));
+    targetCameraY = Math.max(0, Math.min(WORLD_HEIGHT - camera.height, targetCameraY));
+
+    // Linear Interpolation (Lerp) for smooth gliding
+    camera.x += (targetCameraX - camera.x) * 0.1;
+    camera.y += (targetCameraY - camera.y) * 0.1;
 }
 
 function drawPitch() {
@@ -166,22 +228,19 @@ function drawBall() {
     let screenX = ball.x - camera.x;
     let screenY = ball.y - camera.y;
 
-    // FIX: Hard-coded black and white fills so they can never glitch to clear
     ctx.beginPath();
     ctx.arc(screenX, screenY, ball.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff'; // White base
+    ctx.fillStyle = '#ffffff'; 
     ctx.fill();
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1.5;
     ctx.stroke();
     
-    // Draw Center Black Pentagon
     ctx.beginPath();
     ctx.arc(screenX, screenY, ball.radius * 0.45, 0, Math.PI * 2);
-    ctx.fillStyle = '#000000'; // Black center
+    ctx.fillStyle = '#000000'; 
     ctx.fill();
 
-    // Draw 3 smaller edge spots that spin
     for (let i = 0; i < 3; i++) {
         let angle = i * ((Math.PI * 2) / 3) + (ball.x + ball.y) * 0.05; 
         ctx.beginPath();
@@ -190,7 +249,7 @@ function drawBall() {
             screenY + Math.sin(angle) * ball.radius * 0.7,
             ball.radius * 0.25, 0, Math.PI * 2
         );
-        ctx.fillStyle = '#000000'; // Black spots
+        ctx.fillStyle = '#000000'; 
         ctx.fill();
     }
 }
