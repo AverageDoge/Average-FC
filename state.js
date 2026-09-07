@@ -14,7 +14,7 @@ let ball = {
     radius: 8, vx: 0, vy: 0, isPossessedBy: null 
 };
 
-// Fixed Spawning: Player (Yellow) is on the left, AI (Blue) is on the right
+// Player (Yellow) is on the left, AI (Blue) is on the right
 const createTeam = (teamColor, isPlayerTeam) => {
     const dir = isPlayerTeam ? 1 : -1;
     const offsetX = isPlayerTeam ? 200 : 1800;
@@ -42,16 +42,20 @@ const yellowTeam = createTeam('yellow', true);
 const blueTeam = createTeam('blue', false);
 const allPlayers = [...yellowTeam, ...blueTeam];
 
-// Give Yellow the ball first
-ball.isPossessedBy = yellowTeam.find(p => p.role === 'ST');
+// FIX: Force the ball to start exactly on the Yellow Striker
+const yellowStriker = yellowTeam.find(p => p.role === 'ST');
+ball.isPossessedBy = yellowStriker;
+ball.x = yellowStriker.x;
+ball.y = yellowStriker.y;
 
+// FIX: Force all inputs to lowercase so 'R' and 'r' are the same
 window.addEventListener('keydown', (e) => {
-    let key = e.code === 'Space' ? 'Space' : e.key.toLowerCase();
-    keys[key] = true;
+    if (e.code === 'Space') keys['Space'] = true;
+    else keys[e.key.toLowerCase()] = true; 
 });
 window.addEventListener('keyup', (e) => {
-    let key = e.code === 'Space' ? 'Space' : e.key.toLowerCase();
-    keys[key] = false;
+    if (e.code === 'Space') keys['Space'] = false;
+    else keys[e.key.toLowerCase()] = false;
 });
 
 function getDistance(x1, y1, x2, y2) {
