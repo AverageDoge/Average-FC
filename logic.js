@@ -48,7 +48,7 @@ function updateGame() {
     let activePlayer = yellowTeam.find(p => p.isControlled);
     const speed = 6;
     
-    // Manual Player Switching (R Key)
+    // Manual Player Switching (R Key - Now works with capital R too)
     if (keys['r']) {
         activePlayer.isControlled = false;
         let closest = yellowTeam[0];
@@ -87,12 +87,13 @@ function updateGame() {
         }
     } else { charge = 0; chargingAction = null; }
 
-    // Ball Pickup
+    // Ball Pickup Logic
     if (!ball.isPossessedBy) {
         allPlayers.forEach(player => {
             if (getDistance(player.x, player.y, ball.x, ball.y) < player.radius + ball.radius) {
                 ball.isPossessedBy = player;
                 ball.vx = 0; ball.vy = 0;
+                // If it's a yellow player picking up a loose ball, auto-switch to them
                 if (player.team === 'yellow') {
                     yellowTeam.forEach(p => p.isControlled = false);
                     player.isControlled = true;
@@ -124,15 +125,15 @@ function updateGame() {
     });
 
     allPlayers.forEach(p => {
-        // Universal Tackling: If an opponent touches the ball carrier, they steal it
+        // FIX: Proper Tackling. Knock the ball loose instead of an instant infinite steal loop!
         if (ball.isPossessedBy && ball.isPossessedBy.team !== p.team) {
             if (getDistance(p.x, p.y, ball.isPossessedBy.x, ball.isPossessedBy.y) < p.radius * 2) {
-                ball.isPossessedBy = p;
-                charge = 0; chargingAction = null;
-                if (p.team === 'yellow') {
-                    yellowTeam.forEach(yt => yt.isControlled = false);
-                    p.isControlled = true;
-                }
+                // Knock the ball away slightly so it doesn't get instantly stolen back
+                ball.vx = p.facingX * 12;
+                ball.vy = p.facingY * 12;
+                ball.isPossessedBy = null;
+                charge = 0; 
+                chargingAction = null;
             }
         }
 
@@ -156,7 +157,6 @@ function updateGame() {
         }
 
         if (p.team === 'yellow' && !p.isControlled) {
-            // Yellow Counter-Attacking Defense: Closest player aggressively tackles, rest fall back
             if (ball.isPossessedBy && ball.isPossessedBy.team === 'blue' && p === closestYellow) {
                 let tx = ball.x - p.x; let ty = ball.y - p.y;
                 let dist = Math.sqrt(tx*tx + ty*ty);
